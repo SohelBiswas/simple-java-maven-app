@@ -36,10 +36,18 @@ pipeline {
             steps {
                 echo 'Downloading and running Trivy scanner...'
                 sh '''
-                    if [ ! -f ./trivy ]; then
-                        curl -sfL https://raw.githubusercontent.com/aquasec/trivy/main/contrib/install.sh | sh -s -- -b . v0.48.3
-                    fi
-                    ./trivy fs .
+                    # 1. Update packages and install prerequisites
+                    apt-get update && apt-get install -y wget gnupg
+                    
+                    # 2. Add the official Trivy security repository keys safely
+                    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+                    echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.distrib/trivy.list
+                    
+                    # 3. Update lists and install the verified Trivy package
+                    apt-get update && apt-get install -y trivy
+                    
+                    # 4. Run the scan across the workspace filesystem
+                    trivy fs .
                 '''
             }
         }
