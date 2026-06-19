@@ -41,7 +41,7 @@ pipeline {
                     
                     # 2. Add the official Trivy security repository keys safely
                     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-                    echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.distrib/trivy.list
+                    echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.d/trivy.list
                     
                     # 3. Update lists and install the verified Trivy package
                     apt-get update && apt-get install -y trivy
