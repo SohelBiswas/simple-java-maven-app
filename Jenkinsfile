@@ -34,13 +34,15 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
-                echo 'Downloading and running Trivy scanner...'
+                echo 'Installing and running Trivy scanner natively...'
                 sh '''
                     # 1. Update packages and install prerequisites
                     apt-get update && apt-get install -y wget gnupg
                     
                     # 2. Add the official Trivy security repository keys safely
                     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+                    
+                    # FIX: Changed sources.list.distrib to sources.list.d
                     echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.d/trivy.list
                     
                     # 3. Update lists and install the verified Trivy package
