@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         // Replace with your token from http://localhost:9000
-        SONAR_TOKEN = 'your_actual_sonarqube_token_here'
+        SONAR_TOKEN = credentials('jenkins-token')
         SONAR_HOST_URL = 'http://host.docker.internal:9000'
     }
 
