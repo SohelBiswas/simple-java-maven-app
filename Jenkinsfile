@@ -71,6 +71,14 @@ pipeline {
                 echo 'Building final JAR file...'
                 sh 'mvn package -DskipTests'
             }
+
+        post {
+        success {
+            echo 'Pipeline completed successfully! Archiving build artifacts...'
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+        }
+    }
+}
         }
     }
 }
