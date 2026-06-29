@@ -34,21 +34,26 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
-                echo 'Installing and running Trivy scanner natively...'
+                echo 'Checking and running Trivy scanner natively...'
                 sh '''
-                    # 1. Update packages and install prerequisites
-                    apt-get update && apt-get install -y wget gnupg
+                    # If trivy command does not exist, install it
+                    if ! command -v trivy &> /dev/null; then
+                        echo "Trivy not found. Installing..."
+                        apt-get update && apt-get install -y wget gnupg
+                        
+                        # Remove old key file if it exists to prevent 'File exists' failures
+                        rm -f /usr/share/keyrings/trivy.gpg
+                        
+                        # Fetch and safely dearmor the key
+                        wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --batch --dearmor -o /usr/share/keyrings/trivy.gpg
+                        
+                        echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.d/trivy.list
+                        apt-get update && apt-get install -y trivy
+                    else
+                        echo "Trivy is already installed. Proceeding directly to scan."
+                    fi
                     
-                    # 2. Add the official Trivy security repository keys safely
-                    # FIX: Added --batch flag to prevent gpg from seeking an interactive terminal
-                    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --batch --dearmor -o /usr/share/keyrings/trivy.gpg
-                    
-                    echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.d/trivy.list
-                    
-                    # 3. Update lists and install the verified Trivy package
-                    apt-get update && apt-get install -y trivy
-                    
-                    # 4. Run the scan across the workspace filesystem
+                    # Run the scan across the workspace filesystem
                     trivy fs .
                 '''
             }
