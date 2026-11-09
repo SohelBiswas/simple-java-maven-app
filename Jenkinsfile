@@ -62,7 +62,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo 'Sending metrics to SonarQube...'
-                sh "mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.projectKey=simple-java-app"
+                sh "mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN} -Dsonar.host.url=http://host.docker.internal:9000 -Dsonar.projectKey=simple-java-app"
             }
         }
 
