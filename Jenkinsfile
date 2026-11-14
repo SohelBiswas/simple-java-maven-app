@@ -54,7 +54,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo 'Sending metrics to SonarQube...'
-                sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
                 -Dsonar.token=$SONAR_TOKEN \
                 -Dsonar.host.url=http://host.docker.internal:9000 \
                 -Dsonar.projectKey=simple-java-app"
