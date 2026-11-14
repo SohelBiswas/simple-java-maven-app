@@ -37,24 +37,16 @@ pipeline {
                 echo 'Checking and running Trivy scanner natively...'
                 sh '''
                     # If trivy command does not exist, install it
-                    if ! command -v trivy &> /dev/null; then
+                    if ! command -v trivy >/dev/null 2>&1; then
                         echo "Trivy not found. Installing..."
-                        apt-get update && apt-get install -y wget gnupg
-                        
-                        # Remove old key file if it exists to prevent 'File exists' failures
-                        rm -f /usr/share/keyrings/trivy.gpg
-                        
-                        # Fetch and safely dearmor the key
+                        apt-get update
+                        apt-get install -y wget gnupg
                         wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --batch --dearmor -o /usr/share/keyrings/trivy.gpg
-                        
                         echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | tee /etc/apt/sources.list.d/trivy.list
-                        apt-get update && apt-get install -y trivy
-                    else
-                        echo "Trivy is already installed. Proceeding directly to scan."
-                    fi
-                    
-                    # Run the scan across the workspace filesystem
-                    trivy fs .
+                        apt-get update
+                        apt-get install -y trivy
+                      fi
+                      trivy fs .
                 '''
             }
         }
@@ -62,7 +54,10 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo 'Sending metrics to SonarQube...'
-                sh "mvn sonar:sonar -Dsonar.token=${SONAR_TOKEN} -Dsonar.host.url=http://host.docker.internal:9000 -Dsonar.projectKey=simple-java-app"
+                sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                -Dsonar.token=$SONAR_TOKEN \
+                -Dsonar.host.url=http://host.docker.internal:9000 \
+                -Dsonar.projectKey=simple-java-app"
             }
         }
 
