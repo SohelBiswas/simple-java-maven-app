@@ -10,8 +10,8 @@ pipeline {
         skipDefaultCheckout()
         // Keep only the last 10 builds so Jenkins doesn't fill the disk
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        // Stop a stuck build after 30 minutes
-        timeout(time: 30, unit: 'MINUTES')
+        // Stop a stuck build after 60 minutes (includes time waiting for production approval)
+        timeout(time: 60, unit: 'MINUTES')
         // Don't run two builds of this pipeline at the same time
         disableConcurrentBuilds()
     }
@@ -160,11 +160,28 @@ pipeline {
 
         stage('Smoke Test Image') {
             steps {
-                echo 'Running the container once to check it starts correctly...'
+                echo 'Starting the image once on a random port and checking it responds...'
                 sh '''
-                    OUTPUT=$(docker run --rm "$IMAGE_REPO:$IMAGE_TAG")
-                    echo "Container output: $OUTPUT"
-                    echo "$OUTPUT" | grep -qF "$SMOKE_TEST_EXPECT"
+                    name="smoke-$BUILD_NUMBER"
+                    host="${DEPLOY_HOST:-host.docker.internal}"
+                    docker rm -f "$name" >/dev/null 2>&1 || true
+                    trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+
+                    # -p 8080 publishes the app on a random free port of the Docker host
+                    docker run -d --name "$name" -p 8080 \
+                        -e APP_ENV=smoke -e APP_VERSION="$IMAGE_TAG" \
+                        "$IMAGE_REPO:$IMAGE_TAG" >/dev/null
+                    port=$(docker port "$name" 8080/tcp | head -n1 | sed 's/.*://')
+                    url="http://$host:$port"
+
+                    for i in $(seq 1 30); do
+                        curl -fsS "$url/health" >/dev/null 2>&1 && break
+                        sleep 1
+                    done
+
+                    echo "Health: $(curl -fsS "$url/health")"
+                    curl -fsS "$url/" | grep -qF "$SMOKE_TEST_EXPECT"
+                    echo "Smoke test passed"
                 '''
             }
         }
@@ -195,15 +212,43 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to Staging') {
+            steps {
+                echo "Deploying ${IMAGE_TAG} to staging..."
+                sh 'sh ci/deploy.sh staging'
+            }
+        }
+
+        stage('Approve Production') {
+            steps {
+                // Waits for a person to click Deploy or Abort. Gives up after 30 minutes.
+                timeout(time: 30, unit: 'MINUTES') {
+                    input message: "Staging is running ${IMAGE_TAG} (http://localhost:8081). Deploy it to production?",
+                          ok: 'Deploy to production'
+                }
+            }
+        }
+
+        stage('Deploy to Production') {
+            steps {
+                echo "Deploying ${IMAGE_TAG} to production..."
+                sh 'sh ci/deploy.sh production'
+            }
+        }
     }
 
     post {
         always {
-            // Remove this build's images from the machine so they don't pile up
+            // Remove this build's image tags from the machine so they don't pile up.
+            // Images used by the staging/production containers stay until those are replaced.
             sh 'docker image rm "$IMAGE_REPO:$IMAGE_TAG" "$IMAGE_REPO:latest" >/dev/null 2>&1 || true'
         }
         success {
-            echo "Pipeline completed successfully. Pushed ${env.IMAGE_REPO}:${env.IMAGE_TAG}"
+            echo "Pipeline completed. ${env.IMAGE_TAG} is live in production (http://localhost:8082)"
+        }
+        aborted {
+            echo "Production deploy was not approved. Staging keeps running ${env.IMAGE_TAG}."
         }
         failure {
             echo 'Pipeline failed. Check the stage marked in red for details.'
